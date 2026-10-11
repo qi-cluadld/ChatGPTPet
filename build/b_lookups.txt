@@ -1,4 +1,4 @@
-﻿$PetWrap = N 'PetWrap'
+$PetWrap = N 'PetWrap'
 $Pet = N 'Pet'
 $Pet.CacheMode = New-Object System.Windows.Media.BitmapCache
 $Pet.CacheMode.RenderAtScale = 1.0
@@ -10,5 +10,6 @@ $EyeOpen = N 'EyeOpen'; $EyeHappy = N 'EyeHappy'; $EyeScale = N 'EyeScale'; $Eye
 $Mouth = N 'Mouth'; $MouthSmile = N 'MouthSmile'; $MouthFlat = N 'MouthFlat'; $MouthOpen = N 'MouthOpen'
 $Blush = N 'Blush'
 $ThinkBubble = N 'ThinkBubble'; $Dot1 = N 'Dot1'; $Dot2 = N 'Dot2'; $Dot3 = N 'Dot3'
+$SayBubble = N 'SayBubble'; $SayText = N 'SayText'
 $OrbitLayer = N 'OrbitLayer'; $ParticleLayer = N 'ParticleLayer'
 

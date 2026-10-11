@@ -35,6 +35,8 @@ try { Add-Type -AssemblyName System.Xaml } catch { }
 $script:LogPath = Join-Path $env:TEMP 'ChatGPTPet.log'
 $socialPath = Join-Path $PSScriptRoot 'social.ps1'
 if (Test-Path -LiteralPath $socialPath) { . $socialPath }
+$socialPath = Join-Path $PSScriptRoot 'social.ps1'
+if (Test-Path -LiteralPath $socialPath) { . $socialPath }
 function Write-PetLog([string]$msg) {
     try { Add-Content -LiteralPath $script:LogPath -Value ('[{0}] {1}' -f (Get-Date -Format 'HH:mm:ss'), $msg) -Encoding UTF8 } catch { }
 }
@@ -318,6 +320,15 @@ $xaml = @'
     </Canvas>
   </Canvas>
 
+  <!-- 说话气泡(放在 PetWrap 之外, 所以不会跟着宠物一起旋转) -->
+  <Border x:Name="SayBubble" Canvas.Left="16" Canvas.Top="2" MaxWidth="208" CornerRadius="14"
+          Background="#F2FFFFFF" BorderBrush="#4D10A37F" BorderThickness="1.2" Padding="10,6"
+          Visibility="Collapsed" IsHitTestVisible="False">
+    <Border.Effect>
+      <DropShadowEffect Color="#4D00543F" BlurRadius="10" ShadowDepth="2" Direction="270" Opacity="0.45"/>
+    </Border.Effect>
+    <TextBlock x:Name="SayText" FontFamily="Microsoft YaHei UI" FontSize="14" Foreground="#FF123A30" TextWrapping="Wrap"/>
+  </Border>
   <Canvas x:Name="OrbitLayer" Width="240" Height="240" IsHitTestVisible="False"/>
   <Canvas x:Name="ParticleLayer" Width="240" Height="240" IsHitTestVisible="False"/>
 </Canvas>
@@ -344,6 +355,7 @@ $EyeOpen = N 'EyeOpen'; $EyeHappy = N 'EyeHappy'; $EyeScale = N 'EyeScale'; $Eye
 $Mouth = N 'Mouth'; $MouthSmile = N 'MouthSmile'; $MouthFlat = N 'MouthFlat'; $MouthOpen = N 'MouthOpen'
 $Blush = N 'Blush'
 $ThinkBubble = N 'ThinkBubble'; $Dot1 = N 'Dot1'; $Dot2 = N 'Dot2'; $Dot3 = N 'Dot3'
+$SayBubble = N 'SayBubble'; $SayText = N 'SayText'
 $OrbitLayer = N 'OrbitLayer'; $ParticleLayer = N 'ParticleLayer'
 
 # ---------------------------------------------------------------- 计时元素
@@ -647,6 +659,7 @@ function Invoke-Pat {
     $script:PatCount++
     $script:PatT = 0.0
     $script:ExprForce = 'happy'; $script:ExprUntil = $script:T + 1.1
+    Say-IfSocial 'Pat'
     Spawn-Hearts 4
     Spawn-Bubble 2 150 62
     $roll = $script:Rng.NextDouble()
@@ -696,10 +709,30 @@ function Initialize-PetSocial {
         }
         Busy = { $script:State -ne 'idle' }
         Sleepy = { [bool]$script:Sleepy }
+        StopMove = { End-State }
+        Say = {
+            param($t)
+            $SayText.Text = $t
+            $SayBubble.Visibility = 'Visible'
+        }
+        HideSay = { $SayBubble.Visibility = 'Collapsed' }
+        Lines = @{
+            Greet = @('嗨！', '你好呀 ✦', '在的在的')
+            Play  = @('一起玩！', '看我的！')
+            Visit = @('我过来啦', '在忙吗？')
+            Pat   = @('好痒~', '嘿嘿', '再戳一下？')
+            Idle  = @('在的！', '需要帮忙吗？', '已收到 ✦', '……发呆中')
+        }
     }
     if (-not (Connect-PetSocial -SelfId 'chatgpt' -Hooks $hooks)) { $script:SocialReady = $true; return $false }
     $script:SocialReady = $true
     return $true
+}
+function Say-IfSocial([string]$Kind) {
+    if (-not $script:SocialReady) { return }
+    if (-not (Get-Command Say-PetThing -ErrorAction SilentlyContinue)) { return }
+    $ln = Get-PetSocialLine $Kind
+    if ($ln) { Say-PetThing $ln 2.3 }
 }
 function Update-PetSocialTick([double]$dt) {
     if (-not $script:SocialReady) { if (-not (Initialize-PetSocial)) { return } }
