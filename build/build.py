@@ -74,6 +74,14 @@ s = splice(s, "    $poses = @(", "    foreach ($pose in $poses) {", block("b_pos
 s = splice(s, "$menu = New-Object System.Windows.Controls.ContextMenu", "$root.ContextMenu = $menu", block("b_menu"), "menu")
 
 # ---- 文本替换 ----
+# ---- 载入三只桌宠联动模块(三个仓库各一份 social.ps1; 缺失时自动跳过) ----
+# 注意:这段替换跑在"日志改名"之前, 所以这里仍是框架原始名字 GeminiPet.log
+s = replace_once(
+    s,
+    "$script:LogPath = Join-Path $env:TEMP 'GeminiPet.log'",
+    "$script:LogPath = Join-Path $env:TEMP 'GeminiPet.log'\n$socialPath = Join-Path $PSScriptRoot 'social.ps1'\nif (Test-Path -LiteralPath $socialPath) { . $socialPath }",
+    "联动模块",
+)
 # 拖动时应当中断任何正在播放的动作(原来只判断名为 wander 的动作,
 # 结果拖拽会被 swim/slide 这类"移动类动作"每帧覆盖回去)
 s = replace_once(

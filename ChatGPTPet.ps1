@@ -33,6 +33,8 @@ Add-Type -AssemblyName WindowsBase
 try { Add-Type -AssemblyName System.Xaml } catch { }
 
 $script:LogPath = Join-Path $env:TEMP 'ChatGPTPet.log'
+$socialPath = Join-Path $PSScriptRoot 'social.ps1'
+if (Test-Path -LiteralPath $socialPath) { . $socialPath }
 function Write-PetLog([string]$msg) {
     try { Add-Content -LiteralPath $script:LogPath -Value ('[{0}] {1}' -f (Get-Date -Format 'HH:mm:ss'), $msg) -Encoding UTF8 } catch { }
 }
@@ -654,7 +656,55 @@ function Invoke-Pat {
     else { Start-Action 'pop' }
 }
 
-function Update-Pet([double]$dt) {
+
+# ---------------------------------------------------------------- 三只桌宠联动
+function Initialize-PetSocial {
+    if ($script:SocialReady) { return $true }
+    if (-not (Get-Command Connect-PetSocial -ErrorAction SilentlyContinue)) { $script:SocialReady = $true; return $false }
+    $script:SocialLookX = 0.0; $script:SocialLookY = 0.0; $script:SocialTilt = 0.0
+    $hooks = @{
+        Greet = {
+            param($n)
+            $script:IdleSince = $script:T
+            Wake-Pet
+            Start-Action 'wobble'
+            $script:ExprForce = 'happy'; $script:ExprUntil = $script:T + 1.7
+            Spawn-Hearts 5
+            Spawn-Spark 5
+        }
+        Play = {
+            param($n)
+            $script:IdleSince = $script:T
+            Wake-Pet
+            Start-Action 'spin'
+            $script:ExprForce = 'happy'; $script:ExprUntil = $script:T + 1.4
+            Spawn-Spark 8
+        }
+        LookAt = {
+            param($x, $y)
+            $script:SocialLookX = $x
+            $script:SocialLookY = $y
+            $script:SocialTilt = [Math]::Max(-4.0, [Math]::Min(4.0, $x * 0.5))
+        }
+        MoveTo = {
+            param($x)
+            $script:IdleSince = $script:T
+            Start-Action 'slide'
+            $script:WanderFrom = $script:Win.Left
+            $script:WanderTo = $x
+            $script:WanderDir = [Math]::Sign($x - $script:Win.Left)
+        }
+        Busy = { $script:State -ne 'idle' }
+        Sleepy = { [bool]$script:Sleepy }
+    }
+    if (-not (Connect-PetSocial -SelfId 'chatgpt' -Hooks $hooks)) { $script:SocialReady = $true; return $false }
+    $script:SocialReady = $true
+    return $true
+}
+function Update-PetSocialTick([double]$dt) {
+    if (-not $script:SocialReady) { if (-not (Initialize-PetSocial)) { return } }
+    try { Invoke-PetSocial -Dt $dt -Win $script:Win -Hooks $script:PetSocialHooks } catch { Write-PetLog "联动异常: $_" }
+}function Update-Pet([double]$dt) {
     $script:T += $dt
     $script:StateT += $dt
     if ($script:PatT -ge 0) { $script:PatT += $dt }
@@ -831,6 +881,9 @@ function Update-Pet([double]$dt) {
     $BlossomScale.ScaleX = $petalScale
     $BlossomScale.ScaleY = $petalScale
 
+    # ---- 三只桌宠联动(感知同伴, 打招呼/对视/一起玩/串门) ----
+    Update-PetSocialTick 
+
     # 兜底: NaN / Infinity 一旦写进变换, 元素就直接不渲染了
     if ([double]::IsNaN($rot) -or [double]::IsInfinity($rot)) { $rot = 0.0 }
     if ([double]::IsNaN($sx) -or [double]::IsInfinity($sx) -or $sx -le 0.01) { $sx = 1.0 }
@@ -840,14 +893,14 @@ function Update-Pet([double]$dt) {
     if ([double]::IsNaN($lookY) -or [double]::IsInfinity($lookY)) { $lookY = 0.0 }
 
     # ---- 应用到界面 ----
-    $TRot.Angle = $rot
+    $TRot.Angle = $rot + $script:SocialTilt
     $TScale.ScaleX = $sx
     $TScale.ScaleY = $sy
     $TTrans.X = $ox
     $TTrans.Y = $oy
     $EyeScale.ScaleY = $script:EyeBase * $blink
-    $EyeLook.X = $lookX
-    $EyeLook.Y = $lookY
+    $EyeLook.X = $lookX + $script:SocialLookX
+    $EyeLook.Y = $lookY + $script:SocialLookY
     $Blush.Opacity = [Math]::Max(0.0, [Math]::Min(1.0, $blushAmt))
 
     # ---- 身边的小闪光 ----

@@ -86,3 +86,52 @@ function Invoke-Pat {
     else { Start-Action 'pop' }
 }
 
+
+# ---------------------------------------------------------------- 三只桌宠联动
+function Initialize-PetSocial {
+    if ($script:SocialReady) { return $true }
+    if (-not (Get-Command Connect-PetSocial -ErrorAction SilentlyContinue)) { $script:SocialReady = $true; return $false }
+    $script:SocialLookX = 0.0; $script:SocialLookY = 0.0; $script:SocialTilt = 0.0
+    $hooks = @{
+        Greet = {
+            param($n)
+            $script:IdleSince = $script:T
+            Wake-Pet
+            Start-Action 'wobble'
+            $script:ExprForce = 'happy'; $script:ExprUntil = $script:T + 1.7
+            Spawn-Hearts 5
+            Spawn-Spark 5
+        }
+        Play = {
+            param($n)
+            $script:IdleSince = $script:T
+            Wake-Pet
+            Start-Action 'spin'
+            $script:ExprForce = 'happy'; $script:ExprUntil = $script:T + 1.4
+            Spawn-Spark 8
+        }
+        LookAt = {
+            param($x, $y)
+            $script:SocialLookX = $x
+            $script:SocialLookY = $y
+            $script:SocialTilt = [Math]::Max(-4.0, [Math]::Min(4.0, $x * 0.5))
+        }
+        MoveTo = {
+            param($x)
+            $script:IdleSince = $script:T
+            Start-Action 'slide'
+            $script:WanderFrom = $script:Win.Left
+            $script:WanderTo = $x
+            $script:WanderDir = [Math]::Sign($x - $script:Win.Left)
+        }
+        Busy = { $script:State -ne 'idle' }
+        Sleepy = { [bool]$script:Sleepy }
+    }
+    if (-not (Connect-PetSocial -SelfId 'chatgpt' -Hooks $hooks)) { $script:SocialReady = $true; return $false }
+    $script:SocialReady = $true
+    return $true
+}
+function Update-PetSocialTick([double]$dt) {
+    if (-not $script:SocialReady) { if (-not (Initialize-PetSocial)) { return } }
+    try { Invoke-PetSocial -Dt $dt -Win $script:Win -Hooks $script:PetSocialHooks } catch { Write-PetLog "联动异常: $_" }
+}
