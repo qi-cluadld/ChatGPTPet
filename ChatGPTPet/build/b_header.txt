@@ -1,0 +1,15 @@
+#Requires -Version 5.1
+<#
+  ChatGPT 桌面小宠物 / ChatGPT Desktop Pet  ✦
+  ---------------------------------------------------------------
+  * 纯 Windows 自带组件实现(WPF + PowerShell 5.1),无需安装任何依赖
+  * 一只 ChatGPT 六瓣小花(OpenAI 花标造型):花瓣会慢慢转,还会冒出"正在输入…"的三个点
+  * 左键拖动移动,右键菜单(打招呼、摸摸头、思考中、冒个泡、大小、挪个地方、退出)
+  * 不抢焦点(可在你打字时安静地待在角落)
+
+  用法:
+    powershell -NoProfile -ExecutionPolicy Bypass -File ChatGPTPet.ps1
+    powershell ... -File ChatGPTPet.ps1 -Size 1.3          # 放大
+    powershell ... -File ChatGPTPet.ps1 -Preview out        # 渲染静态预览图(检查外观)
+    powershell ... -File ChatGPTPet.ps1 -SelfTest 20        # 自检 20 秒(自动跑一遍所有动作)
+#>

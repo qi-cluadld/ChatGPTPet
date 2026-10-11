@@ -1,0 +1,88 @@
+function Start-Action([string]$name) {
+    $script:State = $name
+    $script:StateT = 0.0
+    switch ($name) {
+        'think' { $script:StateDur = 2.30 }
+        'ping' { $script:StateDur = 1.10; Spawn-Spark 9; Spawn-Bubble 2 152 62 }
+        'bounce' {
+            $script:StateDur = 0.88
+            $script:BounceLand = $false
+        }
+        'spin' { $script:StateDur = 1.05 }
+        'wobble' { $script:StateDur = 1.30 }
+        'stretch' { $script:StateDur = 1.10 }
+        'look' { $script:StateDur = 1.50 }
+        'pop' { $script:StateDur = 0.62 }
+        'slide' {
+            $script:StateDur = 2.40
+            $script:WanderFrom = 0.0; $script:WanderTo = 0.0; $script:WanderDir = 1.0
+            if ($script:Win) {
+                $wa = [System.Windows.SystemParameters]::WorkArea
+                $w = $script:Win.Width
+                $minX = $wa.Left + 8
+                $maxX = $wa.Right - $w - 8
+                $cur = $script:Win.Left
+                $tgt = $cur
+                if ($maxX -gt $minX) {
+                    for ($i = 0; $i -lt 12; $i++) {
+                        $tgt = Rand $minX $maxX
+                        if ([Math]::Abs($tgt - $cur) -gt 150) { break }
+                    }
+                    if ([Math]::Abs($tgt - $cur) -lt 60) { $tgt = if ($cur -lt ($minX + $maxX) / 2) { $maxX } else { $minX } }
+                }
+                $script:WanderFrom = $cur
+                $script:WanderTo = $tgt
+                $script:WanderDir = [Math]::Sign($tgt - $cur)
+            }
+        }
+    }
+    Write-PetLog "动作: $name"
+}
+
+function Start-RandomAction {
+    $pool = @(
+        @{ n = 'think'; w = 18 }, @{ n = 'look'; w = 16 }, @{ n = 'wobble'; w = 13 },
+        @{ n = 'ping'; w = 14 }, @{ n = 'stretch'; w = 11 }, @{ n = 'slide'; w = 14 },
+        @{ n = 'bounce'; w = 12 }, @{ n = 'spin'; w = 10 }
+    )
+    $pool = @($pool | Where-Object { $_.n -ne $script:LastAction })
+    $total = 0.0
+    foreach ($it in $pool) { $total += $it.w }
+    $r = $script:Rng.NextDouble() * $total
+    $acc = 0.0
+    foreach ($it in $pool) {
+        $acc += $it.w
+        if ($r -le $acc) { $script:LastAction = $it.n; Start-Action $it.n; return }
+    }
+    Start-Action 'wobble'
+}
+
+function Enter-Sleep {
+    $script:Sleepy = $true
+    $script:State = 'idle'; $script:StateT = 0.0; $script:StateDur = 0.0
+    $script:ZTimer = 0.0
+    Write-PetLog '睡着了'
+}
+function Wake-Pet {
+    if ($script:Sleepy) {
+        $script:Sleepy = $false
+        $script:ExprForce = 'surprised'; $script:ExprUntil = $script:T + 0.7
+        Write-PetLog '醒了'
+    }
+}
+
+function Invoke-Pat {
+    $script:IdleSince = $script:T
+    Wake-Pet
+    $script:PatCount++
+    $script:PatT = 0.0
+    $script:ExprForce = 'happy'; $script:ExprUntil = $script:T + 1.1
+    Spawn-Hearts 4
+    Spawn-Bubble 2 150 62
+    $roll = $script:Rng.NextDouble()
+    if ($roll -lt 0.30) { Start-Action 'bounce' }
+    elseif ($roll -lt 0.50) { Start-Action 'spin' }
+    elseif ($roll -lt 0.64) { Start-Action 'ping' }
+    else { Start-Action 'pop' }
+}
+

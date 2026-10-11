@@ -1,0 +1,96 @@
+$script:Particles = New-Object System.Collections.ArrayList
+
+function New-Particle {
+    param(
+        [ValidateSet('spark', 'bubble', 'heart', 'z')][string]$Kind,
+        [double]$X, [double]$Y, [double]$VX, [double]$VY, [double]$G,
+        [double]$Life, [double]$S0, [double]$S1, [double]$Spin
+    )
+    $el = $null
+    $offX = 0.0; $offY = 0.0
+    switch ($Kind) {
+        'spark' {
+            $el = New-Object System.Windows.Shapes.Path
+            $el.Data = [System.Windows.Media.Geometry]::Parse($script:SparkData)
+            $el.Fill = New-LinBrush -colors @('#FFFFFFFF', '#FF5CE0B4') -offsets @(0, 1)
+        }
+        'bubble' {
+            $el = New-Object System.Windows.Shapes.Path
+            $el.Data = [System.Windows.Media.Geometry]::Parse($script:BubbleData)
+            $el.Fill = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color][System.Windows.Media.ColorConverter]::ConvertFromString('#F2FFFFFF'))
+            $el.Stroke = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color][System.Windows.Media.ColorConverter]::ConvertFromString('#4D10A37F'))
+            $el.StrokeThickness = 1.2
+            $offX = 0.0; $offY = 0.0
+        }
+        'heart' {
+            $el = New-Object System.Windows.Shapes.Path
+            $el.Data = [System.Windows.Media.Geometry]::Parse($script:HeartData)
+            $el.Fill = New-LinBrush -colors @('#FFFF9EC2', '#FFE0658C') -offsets @(0, 1)
+        }
+        'z' {
+            $el = New-Object System.Windows.Controls.TextBlock
+            $el.Text = 'Z'
+            $el.FontFamily = New-Object System.Windows.Media.FontFamily('Segoe UI')
+            $el.FontWeight = [System.Windows.FontWeights]::Bold
+            $el.FontSize = 17
+            $el.Foreground = New-LinBrush -colors @('#FFFFFFFF', '#FF5CE0B4') -offsets @(0, 1)
+        }
+    }
+    $el.IsHitTestVisible = $false
+    $sc = New-Object System.Windows.Media.ScaleTransform($S0, $S0)
+    $rt = New-Object System.Windows.Media.RotateTransform(0)
+    $tg = New-Object System.Windows.Media.TransformGroup
+    [void]$tg.Children.Add($sc)
+    [void]$tg.Children.Add($rt)
+    $el.RenderTransformOrigin = New-Object System.Windows.Point(0, 0)
+    $el.RenderTransform = $tg
+    $el.Opacity = 1.0
+    [System.Windows.Controls.Canvas]::SetLeft($el, $X + $offX)
+    [System.Windows.Controls.Canvas]::SetTop($el, $Y + $offY)
+    [void]$ParticleLayer.Children.Add($el)
+    [void]$script:Particles.Add(@{
+            El = $el; X = $X; Y = $Y; VX = $VX; VY = $VY; G = $G
+            Life = 0.0; MaxLife = $Life; S0 = $S0; S1 = $S1; Spin = $Spin
+            Sc = $sc; Rot = $rt; OX = $offX; OY = $offY
+        })
+}
+
+function Clear-Particles {
+    foreach ($p in @($script:Particles)) { [void]$ParticleLayer.Children.Remove($p.El) }
+    $script:Particles.Clear()
+}
+
+# 闪光四散(冒个泡/被戳时用)
+function Spawn-Spark([int]$n) {
+    for ($i = 0; $i -lt $n; $i++) {
+        $a = $script:Rng.NextDouble() * 2 * [Math]::PI
+        $sp = Rand 45 125
+        New-Particle -Kind 'spark' -X (120 + [Math]::Cos($a) * 14) -Y (116 + [Math]::Sin($a) * 14) `
+            -VX ([Math]::Cos($a) * $sp) -VY ([Math]::Sin($a) * $sp - 28) -G 55 `
+            -Life (Rand 0.7 1.15) -S0 (Rand 0.45 0.9) -S1 (Rand 0.1 0.35) -Spin (Rand -200 200)
+    }
+}
+
+# 冒出来的对话气泡
+function Spawn-Bubble([int]$n, [double]$bx = 150, [double]$by = 60) {
+    for ($i = 0; $i -lt $n; $i++) {
+        New-Particle -Kind 'bubble' -X ($bx + (Rand -14 14)) -Y ($by + (Rand -8 10)) `
+            -VX (Rand -20 20) -VY (Rand -60 -34) -G -6 `
+            -Life (Rand 0.9 1.5) -S0 (Rand 0.4 0.62) -S1 (Rand 0.85 1.15) -Spin (Rand -30 30)
+    }
+}
+
+function Spawn-Hearts([int]$n) {
+    for ($i = 0; $i -lt $n; $i++) {
+        New-Particle -Kind 'heart' -X (120 + (Rand -46 46)) -Y (120 + (Rand -14 14)) `
+            -VX (Rand -24 24) -VY (Rand -66 -36) -G -8 `
+            -Life (Rand 0.9 1.4) -S0 (Rand 0.3 0.5) -S1 (Rand 0.9 1.25) -Spin (Rand -70 70)
+    }
+}
+
+function Spawn-Z {
+    New-Particle -Kind 'z' -X (Rand 146 162) -Y (Rand 74 88) `
+        -VX (Rand 9 20) -VY (Rand -24 -14) -G -2 `
+        -Life (Rand 1.6 2.1) -S0 (Rand 0.6 0.8) -S1 (Rand 1.3 1.7) -Spin 0
+}
+

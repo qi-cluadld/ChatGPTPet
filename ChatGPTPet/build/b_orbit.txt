@@ -1,0 +1,56 @@
+# 统一的品牌绿渐变(绝对坐标, 让 6 片花瓣共用同一束光)
+function New-MarkBrush {
+    $b = New-Object System.Windows.Media.RadialGradientBrush
+    $b.MappingMode = [System.Windows.Media.BrushMappingMode]::Absolute
+    $b.Center = New-Object System.Windows.Point(120, 92)
+    $b.GradientOrigin = New-Object System.Windows.Point(120, 92)
+    $b.RadiusX = 152; $b.RadiusY = 152
+    [void]$b.GradientStops.Add((New-Gs '#FF62E3B8' 0))
+    [void]$b.GradientStops.Add((New-Gs '#FF17A882' 0.45))
+    [void]$b.GradientStops.Add((New-Gs '#FF0A7A5E' 1))
+    return $b
+}
+
+# 六片花瓣:围一圈, 每片略扭一点角度, 做出花标那种互相咬合的感觉
+function Initialize-Blossom {
+    for ($i = 0; $i -lt 6; $i++) {
+        $ang = 2 * [Math]::PI * $i / 6
+        $r = New-Object System.Windows.Shapes.Rectangle
+        $r.Width = $script:ArmLen
+        $r.Height = $script:ArmThick
+        $r.RadiusX = $script:ArmThick / 2
+        $r.RadiusY = $script:ArmThick / 2
+        $r.Fill = New-MarkBrush
+        $r.RenderTransformOrigin = New-Object System.Windows.Point(0.5, 0.5)
+        $r.RenderTransform = New-Object System.Windows.Media.RotateTransform((90 + $i * 60 + $script:ArmTwist))
+        $r.IsHitTestVisible = $false
+        [System.Windows.Controls.Canvas]::SetLeft($r, $script:CenterX + [Math]::Cos($ang) * $script:ArmDist - $script:ArmLen / 2)
+        [System.Windows.Controls.Canvas]::SetTop($r, $script:CenterY + [Math]::Sin($ang) * $script:ArmDist - $script:ArmThick / 2)
+        [void]$BlossomLayer.Children.Add($r)
+    }
+}
+Initialize-Blossom
+
+# 身边飘的三颗小闪光
+$script:Orbit = New-Object System.Collections.ArrayList
+function Initialize-Orbit {
+    $i = 0
+    foreach ($phase in @(0.6, 2.7, 4.8)) {
+        $p = New-Object System.Windows.Shapes.Path
+        $p.Data = [System.Windows.Media.Geometry]::Parse($script:SparkData)
+        $p.Fill = New-LinBrush -colors @('#F2FFFFFF', '#FF5CE0B4') -offsets @(0, 1)
+        $p.RenderTransformOrigin = New-Object System.Windows.Point(0, 0)
+        $rt = New-Object System.Windows.Media.RotateTransform(0)
+        $p.RenderTransform = $rt
+        $p.IsHitTestVisible = $false
+        [void]$OrbitLayer.Children.Add($p)
+        [void]$script:Orbit.Add(@{
+                El = $p; Rot = $rt; Phase = $phase
+                Speed = 0.30 + 0.06 * $i
+                Radius = 92.0 + 8.0 * $i
+            })
+        $i++
+    }
+}
+Initialize-Orbit
+

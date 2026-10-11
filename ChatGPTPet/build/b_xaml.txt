@@ -1,0 +1,169 @@
+﻿$xaml = @'
+<Canvas xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Name="Root" Width="240" Height="240" ClipToBounds="False">
+
+  <Canvas x:Name="PetWrap" Width="240" Height="240" Canvas.Left="0" Canvas.Top="0"
+          RenderTransformOrigin="0.5,0.5" Cursor="Hand" ClipToBounds="False">
+    <Canvas.RenderTransform>
+      <TransformGroup>
+        <ScaleTransform x:Name="TScale" ScaleX="1" ScaleY="1"/>
+        <RotateTransform x:Name="TRot" Angle="0"/>
+        <TranslateTransform x:Name="TTrans" X="0" Y="0"/>
+      </TransformGroup>
+    </Canvas.RenderTransform>
+    <!-- 六片花瓣(代码里生成, 会慢慢自转)
+         注意:必须放在带 BitmapCache 的 Pet 画布之外! WPF 的位图缓存不会因为
+         子元素被代码新增而刷新, 花瓣若加在缓存内部, 整个宠物会渲染成空白 -->
+    <Canvas x:Name="BlossomLayer" Width="240" Height="240">
+      <Canvas.RenderTransform>
+        <TransformGroup>
+          <ScaleTransform x:Name="BlossomScale" ScaleX="1" ScaleY="1" CenterX="120" CenterY="122"/>
+          <RotateTransform x:Name="BlossomRot" CenterX="120" CenterY="122" Angle="0"/>
+        </TransformGroup>
+      </Canvas.RenderTransform>
+    </Canvas>
+    <Canvas x:Name="Pet" Width="240" Height="240">
+
+      <!-- 柔光 -->
+      <Ellipse Width="232" Height="232" Canvas.Left="4" Canvas.Top="4" Opacity="0.5" IsHitTestVisible="False">
+        <Ellipse.Fill>
+          <RadialGradientBrush>
+            <GradientStop Color="#595CE0B4" Offset="0.30"/>
+            <GradientStop Color="#2E10A37F" Offset="0.68"/>
+            <GradientStop Color="#000A7A5E" Offset="1"/>
+          </RadialGradientBrush>
+        </Ellipse.Fill>
+      </Ellipse>
+
+
+      <!-- 花心(六边形坐垫) -->
+      <Path x:Name="Body" Data="{BODY}" IsHitTestVisible="True">
+        <Path.Fill>
+          <RadialGradientBrush MappingMode="Absolute" Center="120,92" GradientOrigin="120,92" RadiusX="152" RadiusY="152">
+            <GradientStop Color="#FF62E3B8" Offset="0"/>
+            <GradientStop Color="#FF17A882" Offset="0.45"/>
+            <GradientStop Color="#FF0A7A5E" Offset="1"/>
+          </RadialGradientBrush>
+        </Path.Fill>
+        <Path.Effect>
+          <DropShadowEffect Color="#7A00543F" BlurRadius="16" ShadowDepth="5" Direction="270" Opacity="0.5"/>
+        </Path.Effect>
+      </Path>
+
+      <!-- 花心高光 -->
+      <Path Data="{BODY}" IsHitTestVisible="False">
+        <Path.Fill>
+          <RadialGradientBrush GradientOrigin="0.34,0.20" Center="0.34,0.20" RadiusX="0.72" RadiusY="0.62">
+            <GradientStop Color="#66FFFFFF" Offset="0"/>
+            <GradientStop Color="#00FFFFFF" Offset="1"/>
+          </RadialGradientBrush>
+        </Path.Fill>
+      </Path>
+
+      <!-- 眼睛(睁) -->
+      <Canvas x:Name="EyeOpen" Width="240" Height="240" RenderTransformOrigin="0.5,0.5" IsHitTestVisible="False">
+        <Canvas.RenderTransform>
+          <TransformGroup>
+            <ScaleTransform x:Name="EyeScale" ScaleX="1" ScaleY="1"/>
+            <TranslateTransform x:Name="EyeLook" X="0" Y="0"/>
+          </TransformGroup>
+        </Canvas.RenderTransform>
+        <Ellipse Width="24" Height="27" Canvas.Left="92" Canvas.Top="100.5">
+          <Ellipse.Fill>
+            <LinearGradientBrush StartPoint="0.2,0" EndPoint="0.8,1">
+              <GradientStop Color="#FF12463A" Offset="0"/>
+              <GradientStop Color="#FF06231B" Offset="1"/>
+            </LinearGradientBrush>
+          </Ellipse.Fill>
+        </Ellipse>
+        <Ellipse Width="24" Height="27" Canvas.Left="124" Canvas.Top="100.5">
+          <Ellipse.Fill>
+            <LinearGradientBrush StartPoint="0.2,0" EndPoint="0.8,1">
+              <GradientStop Color="#FF12463A" Offset="0"/>
+              <GradientStop Color="#FF06231B" Offset="1"/>
+            </LinearGradientBrush>
+          </Ellipse.Fill>
+        </Ellipse>
+        <Ellipse Width="9" Height="9" Canvas.Left="96" Canvas.Top="104" Fill="#FFFFFFFF" Opacity="0.95"/>
+        <Ellipse Width="9" Height="9" Canvas.Left="128" Canvas.Top="104" Fill="#FFFFFFFF" Opacity="0.95"/>
+        <Ellipse Width="4" Height="4" Canvas.Left="110" Canvas.Top="117" Fill="#FFFFFFFF" Opacity="0.6"/>
+        <Ellipse Width="4" Height="4" Canvas.Left="142" Canvas.Top="117" Fill="#FFFFFFFF" Opacity="0.6"/>
+      </Canvas>
+
+      <!-- 眼睛(笑成弯月) -->
+      <Canvas x:Name="EyeHappy" Width="240" Height="240" Visibility="Collapsed" IsHitTestVisible="False">
+        <Path Data="M -11,3 Q 0,-9 11,3" Stroke="#FF06231B" StrokeThickness="4"
+              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round">
+          <Path.RenderTransform>
+            <TranslateTransform X="104" Y="115"/>
+          </Path.RenderTransform>
+        </Path>
+        <Path Data="M -11,3 Q 0,-9 11,3" Stroke="#FF06231B" StrokeThickness="4"
+              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round">
+          <Path.RenderTransform>
+            <TranslateTransform X="136" Y="115"/>
+          </Path.RenderTransform>
+        </Path>
+      </Canvas>
+
+      <!-- 嘴 -->
+      <Canvas x:Name="Mouth" Width="240" Height="240" IsHitTestVisible="False">
+        <Path x:Name="MouthSmile" Data="M -9,0 Q 0,9 9,0" Stroke="#FF06231B" StrokeThickness="3.2"
+              StrokeStartLineCap="Round" StrokeEndLineCap="Round">
+          <Path.RenderTransform>
+            <TranslateTransform X="120" Y="138"/>
+          </Path.RenderTransform>
+        </Path>
+        <Path x:Name="MouthFlat" Data="M -7,0 L 7,0" Stroke="#FF06231B" StrokeThickness="3.2"
+              StrokeStartLineCap="Round" StrokeEndLineCap="Round" Visibility="Collapsed">
+          <Path.RenderTransform>
+            <TranslateTransform X="120" Y="139"/>
+          </Path.RenderTransform>
+        </Path>
+        <Ellipse x:Name="MouthOpen" Width="12" Height="14" Canvas.Left="114" Canvas.Top="131" Fill="#FF06231B" Visibility="Collapsed"/>
+      </Canvas>
+
+      <!-- 腮红 -->
+      <Canvas x:Name="Blush" Width="240" Height="240" Opacity="0" IsHitTestVisible="False">
+        <Ellipse Width="24" Height="12" Canvas.Left="73" Canvas.Top="120">
+          <Ellipse.Fill>
+            <RadialGradientBrush>
+              <GradientStop Color="#FFFF8FB4" Offset="0"/>
+              <GradientStop Color="#00FF8FB4" Offset="1"/>
+            </RadialGradientBrush>
+          </Ellipse.Fill>
+        </Ellipse>
+        <Ellipse Width="24" Height="12" Canvas.Left="143" Canvas.Top="120">
+          <Ellipse.Fill>
+            <RadialGradientBrush>
+              <GradientStop Color="#FFFF8FB4" Offset="0"/>
+              <GradientStop Color="#00FF8FB4" Offset="1"/>
+            </RadialGradientBrush>
+          </Ellipse.Fill>
+        </Ellipse>
+      </Canvas>
+
+      <!-- "正在输入…" 气泡 -->
+      <Canvas x:Name="ThinkBubble" Width="240" Height="240" Visibility="Collapsed" IsHitTestVisible="False">
+        <Path Data="M 0,0 L 16,0 L 2,15 Z" Fill="#F2FFFFFF" Opacity="0.95">
+          <Path.RenderTransform>
+            <TranslateTransform X="140" Y="50"/>
+          </Path.RenderTransform>
+        </Path>
+        <Border Canvas.Left="136" Canvas.Top="16" Width="64" Height="38" CornerRadius="14" Background="#F2FFFFFF">
+          <Border.Effect>
+            <DropShadowEffect Color="#4D00543F" BlurRadius="10" ShadowDepth="2" Direction="270" Opacity="0.4"/>
+          </Border.Effect>
+        </Border>
+        <Ellipse x:Name="Dot1" Width="9" Height="9" Canvas.Left="147" Canvas.Top="30" Fill="#FF10A37F"/>
+        <Ellipse x:Name="Dot2" Width="9" Height="9" Canvas.Left="162" Canvas.Top="30" Fill="#FF10A37F"/>
+        <Ellipse x:Name="Dot3" Width="9" Height="9" Canvas.Left="177" Canvas.Top="30" Fill="#FF10A37F"/>
+      </Canvas>
+    </Canvas>
+  </Canvas>
+
+  <Canvas x:Name="OrbitLayer" Width="240" Height="240" IsHitTestVisible="False"/>
+  <Canvas x:Name="ParticleLayer" Width="240" Height="240" IsHitTestVisible="False"/>
+</Canvas>
+'@

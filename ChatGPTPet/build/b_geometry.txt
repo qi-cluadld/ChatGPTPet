@@ -1,0 +1,53 @@
+﻿# 正 N 边形(可带圆角)路径数据生成器:花心/花瓣都用它,方便调形状
+# 注意:PowerShell 里 @(a, b) 中逗号的优先级比 + * 高,元素里带运算必须拆成变量,
+#       否则 @($CX + Cos($a)*$R, $CY + ...) 会被解析成 $CX + (Cos($a)*($R,$CY))
+function New-RoundPolyData {
+    param(
+        [double]$R, [int]$N, [double]$Round = 0.4, [double]$Phase = 0,
+        [double]$CX = 120, [double]$CY = 122
+    )
+    $v = @()
+    for ($i = 0; $i -lt $N; $i++) {
+        $a = 2 * [Math]::PI * $i / $N + $Phase
+        $px = $CX + [Math]::Cos($a) * $R
+        $py = $CY + [Math]::Sin($a) * $R
+        $v += , @($px, $py)
+    }
+    $k = $Round
+    $en = @(); $ex = @()
+    for ($i = 0; $i -lt $N; $i++) {
+        $vi = $v[$i]
+        $pv = $v[($i - 1 + $N) % $N]
+        $nv = $v[($i + 1) % $N]
+        $en1 = $vi[0] + ($pv[0] - $vi[0]) * $k
+        $en2 = $vi[1] + ($pv[1] - $vi[1]) * $k
+        $en += , @($en1, $en2)
+        $ex1 = $vi[0] + ($nv[0] - $vi[0]) * $k
+        $ex2 = $vi[1] + ($nv[1] - $vi[1]) * $k
+        $ex += , @($ex1, $ex2)
+    }
+    $sb = New-Object System.Text.StringBuilder
+    [void]$sb.Append('M ' + (F $ex[0][0]) + ',' + (F $ex[0][1]))
+    for ($i = 1; $i -lt $N; $i++) {
+        [void]$sb.Append(' L ' + (F $en[$i][0]) + ',' + (F $en[$i][1]))
+        [void]$sb.Append(' Q ' + (F $v[$i][0]) + ',' + (F $v[$i][1]) + ' ' + (F $ex[$i][0]) + ',' + (F $ex[$i][1]))
+    }
+    [void]$sb.Append(' L ' + (F $en[0][0]) + ',' + (F $en[0][1]))
+    [void]$sb.Append(' Q ' + (F $v[0][0]) + ',' + (F $v[0][1]) + ' ' + (F $ex[0][0]) + ',' + (F $ex[0][1]))
+    [void]$sb.Append(' Z')
+    return $sb.ToString()
+}
+
+$script:CenterX = 120.0
+$script:CenterY = 122.0
+# 花心:六边形(尖朝上),圆角较大,像一个软软的坐垫
+$script:BodyData = New-RoundPolyData -R 50 -N 6 -Round 0.42 -Phase ([Math]::PI / 2)
+# 花瓣(6 片):圆角长条,围着花心转一圈
+$script:ArmLen = 50.0
+$script:ArmThick = 24.0
+$script:ArmDist = 51.5
+$script:ArmTwist = 12.0
+$script:SparkData = 'M 0,-9 C 0,-2 2,0 9,0 C 2,0 0,2 0,9 C 0,2 -2,0 -9,0 C -2,0 0,-2 0,-9 Z'
+$script:BubbleData = 'M -11,-8 L 11,-8 A 4,4 0 0 1 15,-4 L 15,4 A 4,4 0 0 1 11,8 L 3,8 L -3,14 L -2,8 L -11,8 A 4,4 0 0 1 -15,4 L -15,-4 A 4,4 0 0 1 -11,-8 Z'
+$script:HeartData = 'M 0,9 C -11,2 -10,-7 -4.5,-9 C -1.5,-10 0,-8 0,-6 C 0,-8 1.5,-10 4.5,-9 C 10,-7 11,2 0,9 Z'
+

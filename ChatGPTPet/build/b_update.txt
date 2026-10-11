@@ -1,0 +1,217 @@
+﻿function Update-Pet([double]$dt) {
+    $script:T += $dt
+    $script:StateT += $dt
+    if ($script:PatT -ge 0) { $script:PatT += $dt }
+
+    # 太久没人理 -> 睡觉
+    if (-not $script:Sleepy -and $script:State -eq 'idle' -and ($script:T - $script:IdleSince) -gt 75) { Enter-Sleep }
+
+    # 眨眼
+    $blink = 1.0
+    if (-not $script:Sleepy -and $script:EyeBase -gt 0.5) {
+        if ($script:BlinkT -lt 0 -and $script:T -ge $script:NextBlink) { $script:BlinkT = 0.0 }
+        if ($script:BlinkT -ge 0) {
+            $script:BlinkT += $dt
+            $k = $script:BlinkT / 0.16
+            if ($k -ge 1) {
+                $script:BlinkT = -1.0
+                $script:NextBlink = $script:T + (Rand 2.2 6.5)
+            } else {
+                $blink = 1.0 - 0.93 * [Math]::Sin([Math]::PI * $k)
+            }
+        }
+    }
+
+    # 随机小动作
+    if ($script:State -eq 'idle' -and -not $script:Sleepy -and $script:T -ge $script:NextAction) { Start-RandomAction }
+
+    # ---- 待机:浮动 + 花瓣自转 ----
+    $bobP = if ($script:Sleepy) { 5.0 } else { 3.5 }
+    $bobA = if ($script:Sleepy) { 4.0 } else { 7.0 }
+    $oy = [Math]::Sin($script:T * 2 * [Math]::PI / $bobP) * $bobA
+    $rot = [Math]::Sin($script:T * 2 * [Math]::PI / 6.3) * 3.0
+    $brA = 0.016 * [Math]::Sin($script:T * 2 * [Math]::PI / 2.7)
+    $sx = 1.0 + $brA
+    $sy = 1.0 - $brA
+    $ox = 0.0
+    $lookX = 0.0; $lookY = 0.0
+    $blushAmt = 0.0
+    $armRate = 7.0                       # 花瓣自转速度(度/秒)
+    $petalScale = 1.0                  # 花瓣张开程度
+    if ($script:Sleepy) { $rot = 0.0; $armRate = 1.2 }
+
+    # ---- 当前动作 ----
+    $st = $script:State
+    switch ($st) {
+        'think' {
+            $p = Clamp01 ($script:StateT / $script:StateDur)
+            $armRate = 108.0
+            $petalScale = 1.03 + 0.02 * [Math]::Sin($script:T * 4.0)
+            $rot += 2.4 * [Math]::Sin(2 * [Math]::PI * $p * 1.5)
+            $lookX = -3.0; $lookY = -3.0
+            if ($p -ge 1) { End-State }
+        }
+        'ping' {
+            $p = Clamp01 ($script:StateT / $script:StateDur)
+            $k = [Math]::Sin([Math]::PI * $p)
+            $s = 1 + 0.16 * $k
+            $sx *= $s; $sy *= $s
+            $rot += 6 * $k
+            if ($p -ge 1) { End-State }
+        }
+        'bounce' {
+            $p = Clamp01 ($script:StateT / $script:StateDur)
+            $oy -= 52 * 4 * $p * (1 - $p)
+            $s = [Math]::Sin([Math]::PI * $p)
+            $sy = 1 + 0.14 * $s
+            $sx = 1 - 0.08 * $s
+            $rot += -8 + 16 * $p
+            if ($p -gt 0.78) {
+                $q = ($p - 0.78) / 0.22
+                $sy *= 1 - 0.14 * [Math]::Sin([Math]::PI * $q)
+                $sx *= 1 + 0.11 * [Math]::Sin([Math]::PI * $q)
+                if (-not $script:BounceLand) { $script:BounceLand = $true; Spawn-Spark 5 }
+            }
+            if ($p -ge 1) { $script:BounceLand = $false; End-State }
+        }
+        'spin' {
+            $p = Clamp01 ($script:StateT / $script:StateDur)
+            $petalScale = 1 + 0.20 * [Math]::Sin([Math]::PI * $p)
+            $s = 1 - 0.06 * [Math]::Sin([Math]::PI * $p)
+            $sx *= $s; $sy *= $s
+            $rot += 4 * [Math]::Sin(2 * [Math]::PI * $p)
+            if ($p -ge 1) { End-State }
+        }
+        'wobble' {
+            $p = Clamp01 ($script:StateT / $script:StateDur)
+            $k = [Math]::Sin(2 * [Math]::PI * $p * 3.0) * (1 - $p)
+            $sx *= 1 + 0.09 * $k
+            $sy *= 1 - 0.09 * $k
+            $rot += 9 * $k
+            if ($p -ge 1) { End-State }
+        }
+        'stretch' {
+            $p = Clamp01 ($script:StateT / $script:StateDur)
+            $k = [Math]::Sin([Math]::PI * $p)
+            $sx *= 1 + 0.13 * $k
+            $sy *= 1 - 0.12 * $k
+            if ($p -ge 1) { End-State }
+        }
+        'look' {
+            $p = Clamp01 ($script:StateT / $script:StateDur)
+            $sw = [Math]::Sin(2 * [Math]::PI * $p)
+            $rot += 7 * $sw
+            $lookX = 7 * $sw
+            $lookY = 2 * [Math]::Sin(4 * [Math]::PI * $p)
+            if ($p -ge 1) { End-State }
+        }
+        'pop' {
+            $p = Clamp01 ($script:StateT / $script:StateDur)
+            $blushAmt = 0.45 * [Math]::Sin([Math]::PI * $p)
+            if ($p -ge 1) { End-State }
+        }
+        'slide' {
+            $p = Clamp01 ($script:StateT / $script:StateDur)
+            $e = Ease-InOut $p
+            if ($script:Win) { $script:Win.Left = $script:WanderFrom + ($script:WanderTo - $script:WanderFrom) * $e }
+            $rot += 7 * $script:WanderDir * [Math]::Sin([Math]::PI * $p)
+            $oy -= 14 * [Math]::Abs([Math]::Sin(2 * [Math]::PI * $p))
+            $armRate = 26.0
+            if ($p -ge 1) { End-State }
+        }
+    }
+
+    # 被戳时的一下弹跳
+    if ($script:PatT -ge 0) {
+        if ($script:PatT -lt 0.40) {
+            $pop = 1 + 0.17 * [Math]::Sin([Math]::PI * ($script:PatT / 0.40))
+            $sx *= $pop; $sy *= $pop
+        } else { $script:PatT = -1.0 }
+    }
+
+    # 睡觉时冒 Z
+    if ($script:Sleepy) {
+        $script:ZTimer += $dt
+        if ($script:ZTimer -gt 0.95) { $script:ZTimer = 0.0; Spawn-Z }
+    }
+
+    # ---- 表情 ----
+    $expr = 'normal'
+    if ($script:Sleepy) { $expr = 'sleepy' }
+    elseif ($st -eq 'wobble' -or $st -eq 'pop' -or $st -eq 'bounce') { $expr = 'happy' }
+    elseif ($st -eq 'ping') { $expr = 'surprised' }
+    if ($script:T -lt $script:ExprUntil) { $expr = $script:ExprForce }
+    if ($script:T -ge $script:ExprUntil -and $script:ExprForce -ne '') { $script:ExprForce = '' }
+    Set-Expression $expr
+
+    # ---- "正在输入…" 气泡 ----
+    if ($st -eq 'think') {
+        $ThinkBubble.Visibility = 'Visible'
+        $cyc = ($script:StateT * 2.6) % 3.6
+        $d1 = 0.28; if ($cyc -lt 1.2) { $d1 = 1.0 }
+        $d2 = 0.28; if ($cyc -ge 1.2 -and $cyc -lt 2.4) { $d2 = 1.0 }
+        $d3 = 0.28; if ($cyc -ge 2.4) { $d3 = 1.0 }
+        $Dot1.Opacity = $d1
+        $Dot2.Opacity = $d2
+        $Dot3.Opacity = $d3
+    } elseif ($ThinkBubble.Visibility -ne 'Collapsed') {
+        $ThinkBubble.Visibility = 'Collapsed'
+    }
+
+    # ---- 花瓣自转(思考时飞快, 转圈时转两整圈) ----
+    if ($st -eq 'spin') {
+        $script:BlossomAngle = 720 * (Ease-InOut (Clamp01 ($script:StateT / $script:StateDur)))
+    } else {
+        $script:BlossomAngle += $armRate * $dt
+    }
+    if ($script:BlossomAngle -gt 7200) { $script:BlossomAngle -= 7200 }
+    $BlossomRot.Angle = $script:BlossomAngle
+    $BlossomScale.ScaleX = $petalScale
+    $BlossomScale.ScaleY = $petalScale
+
+    # ---- 应用到界面 ----
+    $TRot.Angle = $rot
+    $TScale.ScaleX = $sx
+    $TScale.ScaleY = $sy
+    $TTrans.X = $ox
+    $TTrans.Y = $oy
+    $EyeScale.ScaleY = $script:EyeBase * $blink
+    $EyeLook.X = $lookX
+    $EyeLook.Y = $lookY
+    $Blush.Opacity = [Math]::Max(0.0, [Math]::Min(1.0, $blushAmt))
+
+    # ---- 身边的小闪光 ----
+    foreach ($o in $script:Orbit) {
+        $ang = $script:T * $o.Speed + $o.Phase
+        [System.Windows.Controls.Canvas]::SetLeft($o.El, 120 + [Math]::Cos($ang) * $o.Radius)
+        [System.Windows.Controls.Canvas]::SetTop($o.El, 122 + [Math]::Sin($ang) * $o.Radius * 0.6)
+        $o.El.Opacity = 0.16 + 0.5 * (0.5 + 0.5 * [Math]::Sin($script:T * 1.35 + $o.Phase))
+        $o.Rot.Angle = $ang * 57.2958
+    }
+
+    # ---- 粒子 ----
+    if ($script:Particles.Count -gt 0) {
+        for ($i = $script:Particles.Count - 1; $i -ge 0; $i--) {
+            $pt = $script:Particles[$i]
+            $pt.Life += $dt
+            $tt = $pt.Life / $pt.MaxLife
+            if ($tt -ge 1) {
+                [void]$ParticleLayer.Children.Remove($pt.El)
+                $script:Particles.RemoveAt($i)
+                continue
+            }
+            $pt.X += $pt.VX * $dt
+            $pt.Y += $pt.VY * $dt
+            $pt.VY += $pt.G * $dt
+            $pt.VX *= 0.985
+            [System.Windows.Controls.Canvas]::SetLeft($pt.El, $pt.X + $pt.OX)
+            [System.Windows.Controls.Canvas]::SetTop($pt.El, $pt.Y + $pt.OY)
+            $pt.El.Opacity = [Math]::Max(0.0, 1.0 - $tt * $tt)
+            $s = $pt.S0 + ($pt.S1 - $pt.S0) * $tt
+            $pt.Sc.ScaleX = $s
+            $pt.Sc.ScaleY = $s
+            $pt.Rot.Angle += $pt.Spin * $dt
+        }
+    }
+}
+
