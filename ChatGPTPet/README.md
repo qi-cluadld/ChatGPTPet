@@ -1,4 +1,4 @@
-﻿# ChatGPT 桌面小宠物 ✦
+# ChatGPT 桌面小宠物 ✦
 
 一只 OpenAI 花标造型的六瓣小花精灵,常驻在桌面角落:花瓣会慢慢自转,想事情的时候还会冒出"正在输入…"的三个点。
 
@@ -74,6 +74,7 @@ powershell ... -File ChatGPTPet.ps1 -ActivateOnClick
 * **高 DPI**:启动时申请 Per-Monitor-V2 DPI 感知,125% / 150% 缩放下依然清晰,拖动位移按 DPI 换算。
 * **性能**:30fps 定时器驱动,整只宠物用 `BitmapCache` 缓存位图,逐帧只做合成;实测**约 3~5% 单核 CPU、约 130MB 内存**。
 * **踩过的坑(重要)**:WPF 的 `BitmapCache` **不会因为子元素被"代码新增"而刷新**——六片花瓣是代码里生成的,若把它们加在带缓存的 `Pet` 画布**内部**,整个宠物会被渲染成一片空白(桌面上只剩粒子特效)。所以花瓣层 `BlossomLayer` 必须放在缓存画布**之外**,它仍随宠物一起漂浮旋转。以后往这只宠物里加"代码生成"的元素时也要遵守这条。
+* **踩过的坑(二)**:动作结束时 `End-State` 会把 `StateT/StateDur` 清零,而同一帧里局部变量 `$st` 还是旧状态名 —— 此时再做 `StateT/StateDur` 就是 `0/0 = NaN`,一旦写进 `RotateTransform.Angle`,**WPF 会整个元素都不渲染**(表现为花瓣凭空消失,而且 NaN 会一直传下去,要等下一次旋转重新赋值才恢复)。所以这处判断改用 `$script:State` 并加了 `StateDur > 0` 守卫,另外给所有写进变换的值加了 NaN/Infinity 兜底。
 * **出错不影响你**:每帧更新都包了异常捕获,异常写进日志 `%TEMP%\ChatGPTPet.log`。
 
 ---

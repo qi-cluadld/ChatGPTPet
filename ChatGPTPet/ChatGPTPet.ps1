@@ -815,15 +815,29 @@ function Update-Pet([double]$dt) {
     }
 
     # ---- 花瓣自转(思考时飞快, 转圈时转两整圈) ----
-    if ($st -eq 'spin') {
+    # 坑(已踩): 这里必须用 $script:State, 不能用本帧早先取到的 $st。
+    # End-State 会把 StateT/StateDur 清零, 而那一帧 $st 仍是 'spin',
+    # 于是 0/0 = NaN 被写进 RotateTransform.Angle → 花瓣整个不渲染,
+    # 且 NaN 会一直累加下去(要等下一次旋转重新赋值才恢复)。
+    if ($script:State -eq 'spin' -and $script:StateDur -gt 0) {
         $script:BlossomAngle = 720 * (Ease-InOut (Clamp01 ($script:StateT / $script:StateDur)))
     } else {
         $script:BlossomAngle += $armRate * $dt
     }
-    if ($script:BlossomAngle -gt 7200) { $script:BlossomAngle -= 7200 }
+    if ([double]::IsNaN($script:BlossomAngle) -or [double]::IsInfinity($script:BlossomAngle)) { $script:BlossomAngle = 0.0 }
+    if ([double]::IsNaN($petalScale) -or [double]::IsInfinity($petalScale) -or $petalScale -le 0.05) { $petalScale = 1.0 }
+    $script:BlossomAngle = $script:BlossomAngle % 360
     $BlossomRot.Angle = $script:BlossomAngle
     $BlossomScale.ScaleX = $petalScale
     $BlossomScale.ScaleY = $petalScale
+
+    # 兜底: NaN / Infinity 一旦写进变换, 元素就直接不渲染了
+    if ([double]::IsNaN($rot) -or [double]::IsInfinity($rot)) { $rot = 0.0 }
+    if ([double]::IsNaN($sx) -or [double]::IsInfinity($sx) -or $sx -le 0.01) { $sx = 1.0 }
+    if ([double]::IsNaN($sy) -or [double]::IsInfinity($sy) -or $sy -le 0.01) { $sy = 1.0 }
+    if ([double]::IsNaN($oy) -or [double]::IsInfinity($oy)) { $oy = 0.0 }
+    if ([double]::IsNaN($lookX) -or [double]::IsInfinity($lookX)) { $lookX = 0.0 }
+    if ([double]::IsNaN($lookY) -or [double]::IsInfinity($lookY)) { $lookY = 0.0 }
 
     # ---- 应用到界面 ----
     $TRot.Angle = $rot
