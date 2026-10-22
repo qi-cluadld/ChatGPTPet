@@ -23,11 +23,11 @@
 
 try { Add-Type -AssemblyName System.IO.MemoryMappedFiles -ErrorAction Stop } catch { }
 
-$script:PetSocialMmfName = 'DesktopPets.Interop.v5'
-$script:PetSocialCapacity = 640
+$script:PetSocialMmfName = 'DesktopPets.Interop.v9'
+$script:PetSocialCapacity = 1024
 $script:PetSocialSlotSize = 64
-$script:PetSocialIds = @{ 'gemini' = 0; 'deepseek' = 1; 'chatgpt' = 2; 'claude' = 3; 'doubao' = 4; 'qwen' = 5; 'copilot' = 6; 'glm' = 7; 'grok' = 8; 'apple' = 9 }
-$script:PetSocialNames = @{ 'gemini' = '小星星'; 'deepseek' = '小鲸鱼'; 'chatgpt' = '小花'; 'claude' = '小太阳'; 'doubao' = '小豆包'; 'qwen' = '小千'; 'copilot' = '小飞'; 'glm' = '小象'; 'grok' = '小格'; 'apple' = '小智' }
+$script:PetSocialIds = @{ 'gemini' = 0; 'deepseek' = 1; 'chatgpt' = 2; 'claude' = 3; 'doubao' = 4; 'qwen' = 5; 'copilot' = 6; 'glm' = 7; 'grok' = 8; 'apple' = 9; 'google_g' = 10; 'google_flat' = 11; 'google_old' = 12; 'apple_logo' = 13; 'win7' = 14; 'win10' = 15 }
+$script:PetSocialNames = @{ 'gemini' = '小星星'; 'deepseek' = '小鲸鱼'; 'chatgpt' = '小花'; 'claude' = '小太阳'; 'doubao' = '小豆包'; 'qwen' = '小千'; 'copilot' = '小飞'; 'glm' = '小象'; 'grok' = '小格'; 'apple' = '小智'; 'google_g' = '小谷'; 'google_flat' = '小彩'; 'google_old' = '老谷歌'; 'apple_logo' = '小苹'; 'win7' = '小七'; 'win10' = '小十' }
 $script:PetSocialBitAlive = 1
 $script:PetSocialBitPlay = 2
 $script:PetSocialBitSleep = 4
@@ -133,7 +133,7 @@ function Connect-PetSocial {
     $script:PetSocialTalkKind = $script:PetSocialTalkNone
     $script:PetSocialTalkTo = -1
     $script:PetSocialTalkStamp = 0
-    $script:PetSocialSeenSeq = @{ 0 = 0; 1 = 0; 2 = 0; 3 = 0; 4 = 0; 5 = 0; 6 = 0; 7 = 0; 8 = 0; 9 = 0 }
+    $script:PetSocialSeenSeq = @{ 0 = 0; 1 = 0; 2 = 0; 3 = 0; 4 = 0; 5 = 0; 6 = 0; 7 = 0; 8 = 0; 9 = 0; 10 = 0; 11 = 0; 12 = 0; 13 = 0; 14 = 0; 15 = 0 }
     $script:PetSocialConvo = $null
     $script:PetSocialConvoUntil = -99.0
     $script:PetSocialPending = $null
@@ -147,11 +147,13 @@ function Connect-PetSocial {
     $script:PetSocialLastSorry = -99.0
     $script:PetSocialLastTop = -99.0
     $script:PetSocialHwnd = [IntPtr]::Zero
+    Start-PetLan
+    if ($env:PET_GUEST) { $script:PetLanGuestSide = $env:PET_GUEST }
     $script:PetBattleState = 0; $script:PetBattleHp = 100; $script:PetBattleSeq = 0; $script:PetBattleDmg = 0
     $script:PetBattleWith = ''; $script:PetBattleNextAt = 0.0; $script:PetBattleSeen = @{}; $script:PetBattleEndAt = 0.0; $script:PetBattleCooldown = -999.0
     $script:PetSocialLastAngerDecay = 0.0
     Import-PetSocialLines -Defaults $Hooks.Lines -JsonPath $LinesPath | Out-Null
-    Write-PetLog "联动: 已连接 v3(槽位 $($script:PetSocialSelfIdx), 名字 $($script:PetSocialNames[$SelfId]))"
+    Write-PetLog "联动: 已连接 v9(槽位 $($script:PetSocialSelfIdx), 名字 $($script:PetSocialNames[$SelfId]))"
     return $true
 }
 
@@ -464,6 +466,92 @@ function Invoke-PetSocialChallenge {
     }
     if ($best) { Write-PetLog "对战: 手动挑战 $($best.Id)(距离 $([int]$bd)px)"; Start-PetBattle -N $best -Now $script:T }
 }
+# ================================================================ LAN hand-off (UDP 45678)
+# A pet that reaches the screen edge broadcasts a hand-off; a pet on the same LAN
+# picks it up and brings that pet up locally (Windows launches its process with
+# PET_GUEST=left/right so the new one walks in from that side).
+$script:PetLanPort = 45678
+$script:PetLanFolder = @{
+    gemini = 'GeminiPet'; deepseek = 'DeepSeekPet'; chatgpt = 'ChatGPTPet'; claude = 'ClaudePet'
+    doubao = 'DoubaoPet'; qwen = 'QwenPet'; copilot = 'CopilotPet'; glm = 'GLMPet'
+    grok = 'GrokPet'; apple = 'ApplePet'; google_g = 'GoogleGPet'; google_flat = 'GoogleFlatPet'; google_old = 'GoogleOldPet'; apple_logo = 'AppleLogoPet'; win7 = 'Win7Pet'; win10 = 'Win10Pet'
+}
+function Start-PetLan {
+    $script:PetLanLastSend = 0.0
+    $script:PetLanLastSpawn = @{}
+    try {
+        $script:PetLanUdp = New-Object System.Net.Sockets.UdpClient
+        $script:PetLanUdp.EnableBroadcast = $true
+        $script:PetLanUdp.Client.SetSocketOption([System.Net.Sockets.SocketOptionLevel]::Socket,
+            [System.Net.Sockets.SocketOptionName]::ReuseAddress, $true)
+        $script:PetLanUdp.Client.Bind((New-Object System.Net.IPEndPoint([System.Net.IPAddress]::Any, $script:PetLanPort)))
+        $script:PetLanUdp.Client.Blocking = $false
+        Write-PetLog ("LAN: listening on udp/" + $script:PetLanPort)
+    } catch {
+        $script:PetLanUdp = $null
+        Write-PetLog ("LAN: disabled (" + $_.Exception.Message + ")")
+    }
+}
+function Send-PetHandoff {
+    param([string]$Key, [string]$Name, [string]$Dir)
+    if (-not $script:PetLanUdp) { return }
+    try {
+        $msg = @{ t = 'handoff'; key = $Key; name = $Name; dir = $Dir; host = $env:COMPUTERNAME; ts = [int][double]::Parse((Get-Date -UFormat %s)) } | ConvertTo-Json -Compress
+        $b = [System.Text.Encoding]::UTF8.GetBytes($msg)
+        [void]$script:PetLanUdp.Send($b, $b.Length, (New-Object System.Net.IPEndPoint([System.Net.IPAddress]::Broadcast, $script:PetLanPort)))
+        Write-PetLog ("LAN: handed off " + $Key + " to the " + $Dir + " side")
+    } catch { }
+}
+function Start-PetLocalInstance {
+    param([string]$Key)
+    if ($script:PetLanFolder.ContainsKey($Key) -eq $false) { return }
+    $now = (Get-Date).Ticks / 10000000.0
+    $last = 0.0
+    if ($script:PetLanLastSpawn.ContainsKey($Key)) { $last = $script:PetLanLastSpawn[$Key] }
+    if ($now - $last -lt 60) { return }                       # anti-flood: once a minute
+    $script:PetLanLastSpawn[$Key] = $now
+    $folder = Join-Path (Split-Path $PSScriptRoot -Parent) $script:PetLanFolder[$Key]
+    $vbs = Join-Path $folder '启动宠物.vbs'
+    $ps1 = Join-Path $folder ($script:PetLanFolder[$Key] + '.ps1')
+    try {
+        if (Test-Path $vbs) {
+            $env:PET_GUEST = if ($script:PetLanGuestSide) { $script:PetLanGuestSide } else { 'right' }
+            Start-Process wscript.exe -ArgumentList ('"' + $vbs + '"')
+            Remove-Item Env:\PET_GUEST -ErrorAction SilentlyContinue
+        } elseif (Test-Path $ps1) {
+            Start-Process powershell.exe -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', $ps1)
+        }
+        Write-PetLog ("LAN: brought up " + $Key + " locally")
+    } catch { Write-PetLog ("LAN: spawn failed for " + $Key + ": " + $_.Exception.Message) }
+}
+function Update-PetLan {
+    param($Win, [double]$Now)
+    if (-not $script:PetLanUdp) { return }
+    # --- receive ---
+    try {
+        while ($script:PetLanUdp.Available -gt 0) {
+            $ep = New-Object System.Net.IPEndPoint([System.Net.IPAddress]::Any, 0)
+            $data = $script:PetLanUdp.Receive([ref]$ep)
+            $msg = [System.Text.Encoding]::UTF8.GetString($data) | ConvertFrom-Json
+            if ($msg.t -eq 'handoff' -and $msg.key -ne $script:PetSocialKey -and $msg.host -ne $env:COMPUTERNAME) {
+                $script:PetLanGuestSide = if ($msg.dir -eq 'right') { 'left' } else { 'right' }
+                Write-PetLog ("LAN: " + $msg.name + " arrived from " + $ep.Address + " (coming in from the " + $script:PetLanGuestSide + ")")
+                Start-PetLocalInstance -Key $msg.key
+            }
+        }
+    } catch { }
+    # --- send when this pet hugs a screen edge ---
+    if ($Win) {
+        $left = [double]$Win.Left
+        $right = [double]($Win.Left + $Win.Width)
+        $sw = [double][System.Windows.SystemParameters]::PrimaryScreenWidth
+        if (($left -le 4 -or $right -ge $sw - 4) -and ($Now - $script:PetLanLastSend) -gt 25) {
+            $script:PetLanLastSend = $Now
+            $dir = if ($left -le 4) { 'left' } else { 'right' }
+            Send-PetHandoff -Key $script:PetSocialKey -Name $script:PetSocialName -Dir $dir
+        }
+    }
+}
 function Reset-PetBattle {
     $script:PetBattleState = 0; $script:PetBattleHp = 100; $script:PetBattleSeq = 0
     $script:PetBattleDmg = 0; $script:PetBattleWith = ''; $script:PetBattleSeen = @{}; $script:PetBattleEndAt = 0.0
@@ -499,6 +587,7 @@ function Update-PetBattle {
         Say-PetSocialTalk -Kind 'Win' -ToId $N.Id -KindCode $script:PetSocialTalkNone 2.8 | Out-Null
         if ($script:PetSocialHooks.Play) { try { & $script:PetSocialHooks.Play $N } catch { } }
         Write-PetLog "对战: 赢了 $($N.Id)!"
+        $script:PetBattleState = 2      # 标记已结束, 防止每帧重复结算(刷屏)
         $script:PetBattleEndAt = $Now + 1.5
         return $true
     }
@@ -577,6 +666,7 @@ function Invoke-PetSocial {
         $c = Set-PetFrameRate -Ms $script:PetCompatTargetMs
         try { Write-PetLog ("目标帧率 " + [math]::Round(1000.0 / $script:PetCompatTargetMs) + " fps, 已把刷新间隔调成 " + $script:PetCompatTargetMs + " ms (命中 " + $c + " 个定时器)") } catch { }
     }
+    Update-PetLan -Win $Win -Now (Get-Date).Ticks / 10000000.0
     Protect-PetOnScreen -Win $Win -Hooks $Hooks | Out-Null
     if (($now - $script:PetSocialLastTop) -gt 2.0) { $script:PetSocialLastTop = $now; Assert-PetTopmost -Win $Win }
     Update-PetSayState

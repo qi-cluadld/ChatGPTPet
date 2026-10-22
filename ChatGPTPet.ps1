@@ -954,14 +954,21 @@ function Update-PetSocialTick([double]$dt) {
     if ([double]::IsNaN($lookY) -or [double]::IsInfinity($lookY)) { $lookY = 0.0 }
 
     # ---- 应用到界面 ----
-    $TRot.Angle = $rot + $script:SocialTilt
+    if ($null -eq $script:EaseTilt) { $script:EaseTilt = $rot + $script:SocialTilt }
+    $script:EaseTilt += (($rot + $script:SocialTilt) - $script:EaseTilt) * 0.16
+    $TRot.Angle = $script:EaseTilt
     $TScale.ScaleX = $sx
     $TScale.ScaleY = $sy
     $TTrans.X = $ox
     $TTrans.Y = $oy
     $EyeScale.ScaleY = $script:EyeBase * $blink
-    $EyeLook.X = $lookX + $script:SocialLookX
-    $EyeLook.Y = $lookY + $script:SocialLookY
+    $tx = $lookX + $script:SocialLookX
+    $ty = $lookY + $script:SocialLookY
+    if ($null -eq $script:EaseLookX) { $script:EaseLookX = $tx; $script:EaseLookY = $ty }
+    $script:EaseLookX += ($tx - $script:EaseLookX) * 0.18
+    $script:EaseLookY += ($ty - $script:EaseLookY) * 0.18
+    $EyeLook.X = $script:EaseLookX
+    $EyeLook.Y = $script:EaseLookY
     $Blush.Opacity = [Math]::Max(0.0, [Math]::Min(1.0, $blushAmt))
 
     # ---- 身边的小闪光 ----
